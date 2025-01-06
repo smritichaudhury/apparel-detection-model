@@ -62,18 +62,18 @@ def process_frame():
     try:
         if current_stable_detection and time.time() - stable_start_time < 3:
             label, (min_prob, max_prob) = current_stable_detection
-            probability = generate_random_probability(min_prob, max_prob)  # Use the new function
+            probability = generate_random_probability(min_prob, max_prob)
             logger.info(f"Stable Prediction: {label}, Probability: {probability:.2f}%")
             return f"{label},{probability:.2f}"
         else:
-            # Choose a new stable detection
+            # Choose a new stable detection (**Hardcoded Logic**)
             label = random.choice(list(hardcoded_detections.keys()))
             current_stable_detection = (label, hardcoded_detections[label])
             stable_start_time = time.time()
             logger.info(f"Switching to Stable Prediction: {label}")
 
             label, (min_prob, max_prob) = current_stable_detection
-            probability = generate_random_probability(min_prob, max_prob)  # Use the new function
+            probability = generate_random_probability(min_prob, max_prob)
             logger.info(f"Stable Prediction: {label}, Probability: {probability:.2f}%")
             return f"{label},{probability:.2f}"
 
@@ -81,7 +81,6 @@ def process_frame():
         tb = traceback.format_exc()
         logger.error(f"Error in prediction: {e}\n{tb}")
         return "Error,Invalid frame", 500
-
 
 if __name__ == "__main__":
     app.run(debug=False)
