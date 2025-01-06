@@ -32,9 +32,10 @@ hardcoded_detections = {
     "Ankle boot": (61, 79),
 }
 
+# Variables to manage stable detection logic
 current_stable_detection = None
 stable_start_time = None
-stable_duration = 3  # seconds
+stable_duration = 3  # Stable period in seconds
 
 
 def generate_random_probability(min_prob, max_prob):
@@ -54,18 +55,19 @@ def process_frame():
 
     try:
         current_time = time.time()
-        if current_stable_detection and current_time - stable_start_time < stable_duration:
+
+        if current_stable_detection and (current_time - stable_start_time) < stable_duration:
             # Continue with the current stable detection
             label, (min_prob, max_prob) = current_stable_detection
             probability = generate_random_probability(min_prob, max_prob)
             logger.info(f"Stable Prediction: {label}, Probability: {probability:.2f}%")
             return f"{label},{probability:.2f}"
         else:
-            # Switch to a new stable detection
+            # Switch to a new stable detection after the stable duration
             label = random.choice(list(hardcoded_detections.keys()))
             current_stable_detection = (label, hardcoded_detections[label])
             stable_start_time = current_time
-            logger.info(f"Switching to New Stable Prediction: {label}")
+            logger.info(f"Switching to New Stable Detection: {label}")
 
             # Generate probability for the new detection
             label, (min_prob, max_prob) = current_stable_detection
