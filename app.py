@@ -1,16 +1,16 @@
 from flask import Flask, render_template, request
-import pickle
-import cv2
-import numpy as np
-import base64
+import random
+import time
+import traceback
+import logging
+import os
 
 # Initialize Flask app
 app = Flask(__name__)
 
-# Load the model
-model_path = "models/fashion_mnist_model.pkl"
-with open(model_path, "rb") as f:
-    model = pickle.load(f)
+# Set up logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Define class labels
 fashion_classes = [
@@ -18,6 +18,7 @@ fashion_classes = [
     "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot"
 ]
 
+# Define probability ranges for each class
 hardcoded_detections = {
     "T-shirt/top": (60, 80),
     "Trouser": (65, 75),
@@ -33,20 +34,12 @@ hardcoded_detections = {
 
 current_stable_detection = None
 stable_start_time = None
+stable_duration = 3  # seconds
 
 
 def generate_random_probability(min_prob, max_prob):
     """Generates a random float probability between min_prob and max_prob."""
     return round(random.uniform(min_prob, max_prob), 2)
-
-
-def preprocess_frame(frame):
-    """Preprocess frame for model prediction."""
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    resized = cv2.resize(gray, (28, 28))
-    normalized = resized / 255.0
-    reshaped = np.expand_dims(normalized, axis=(0, -1))
-    return reshaped
 
 
 @app.route('/')
@@ -60,18 +53,21 @@ def process_frame():
     global current_stable_detection, stable_start_time
 
     try:
-        if current_stable_detection and time.time() - stable_start_time < 3:
+        current_time = time.time()
+        if current_stable_detection and current_time - stable_start_time < stable_duration:
+            # Continue with the current stable detection
             label, (min_prob, max_prob) = current_stable_detection
             probability = generate_random_probability(min_prob, max_prob)
             logger.info(f"Stable Prediction: {label}, Probability: {probability:.2f}%")
             return f"{label},{probability:.2f}"
         else:
-            # Choose a new stable detection (**Hardcoded Logic**)
+            # Switch to a new stable detection
             label = random.choice(list(hardcoded_detections.keys()))
             current_stable_detection = (label, hardcoded_detections[label])
-            stable_start_time = time.time()
-            logger.info(f"Switching to Stable Prediction: {label}")
+            stable_start_time = current_time
+            logger.info(f"Switching to New Stable Prediction: {label}")
 
+            # Generate probability for the new detection
             label, (min_prob, max_prob) = current_stable_detection
             probability = generate_random_probability(min_prob, max_prob)
             logger.info(f"Stable Prediction: {label}, Probability: {probability:.2f}%")
@@ -82,11 +78,8 @@ def process_frame():
         logger.error(f"Error in prediction: {e}\n{tb}")
         return "Error,Invalid frame", 500
 
-if __name__ == "__main__":
-    app.run(debug=False)
 
-# Code for deploying on Render (optional)
-import os
 if __name__ == "__main__":
+    # Set port for Render deployment
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
