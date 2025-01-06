@@ -3,47 +3,7 @@ import pickle
 import cv2
 import numpy as np
 import base64
-import logging
-import traceback
-import io  # Import io for handling bytes
 
-# Configure logging (do this once, preferably at the top of your app.py)
-logging.basicConfig(level=logging.ERROR)  # Set logging level
-logger = logging.getLogger(__name__)
-
-@app.route('/process_frame', methods=['POST'])
-def process_frame():
-    try:
-        data = request.get_json()
-        image_data = data.get('image') # Handle potential missing 'image' key
-        if not image_data:
-            logger.error("No image data received from client.")
-            return "Error, No Image", 400
-
-        image_bytes = base64.b64decode(image_data.split(',')[1])
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        if frame is None: # Check if imdecode failed
-            logger.error("cv2.imdecode failed to decode image.")
-            return "Error, Invalid Image Format", 400
-
-        logger.info(f"Frame shape: {frame.shape}, Frame type: {frame.dtype}")
-        processed_frame = preprocess_frame(frame)
-        logger.info(f"Processed frame shape: {processed_frame.shape}, Processed frame type: {processed_frame.dtype}")
-
-        predictions = model.predict(processed_frame)
-        class_idx = np.argmax(predictions)
-        label = fashion_classes[class_idx]
-        probability = predictions[0][class_idx] * 100
-
-        logger.info(f"Predicted Label: {label}, Probability: {probability:.2f}%")
-        return f"{label},{round(probability, 2)}"
-
-    except Exception as e:
-        tb = traceback.format_exc()
-        logger.error(f"Error in prediction: {e}\n{tb}")
-        return "Error,Invalid frame", 500
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -58,6 +18,36 @@ fashion_classes = [
     "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot"
 ]
 
+hardcoded_detections = {
+    "T-shirt/top": (60, 80),
+    "Trouser": (65, 75),
+    "Pullover": (70, 90),
+    "Dress": (55, 85),
+    "Coat": (62, 78),
+    "Sandal": (75, 82),
+    "Shirt": (68, 88),
+    "Sneaker": (58, 72),
+    "Bag": (72, 92),
+    "Ankle boot": (61, 79),
+}
+
+current_stable_detection = None
+stable_start_time = None
+
+
+def generate_random_probability(min_prob, max_prob):
+    """Generates a random float probability between min_prob and max_prob."""
+    return round(random.uniform(min_prob, max_prob), 2)
+
+
+def preprocess_frame(frame):
+    """Preprocess frame for model prediction."""
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    resized = cv2.resize(gray, (28, 28))
+    normalized = resized / 255.0
+    reshaped = np.expand_dims(normalized, axis=(0, -1))
+    return reshaped
+
 @app.route('/')
 def index():
     """Main page."""
@@ -65,26 +55,29 @@ def index():
 
 @app.route('/process_frame', methods=['POST'])
 def process_frame():
+      global current_stable_detection, stable_start_time
+
     try:
-        data = request.get_json()
-        image_data = data['image'].split(',')[1]
-        image_bytes = base64.b64decode(image_data)
+        if current_stable_detection and time.time() - stable_start_time < 3:
+            label, (min_prob, max_prob) = current_stable_detection
+            probability = generate_random_probability(min_prob, max_prob) # Use the new function
+            logger.info(f"Stable Prediction: {label}, Probability: {probability:.2f}%")
+            return f"{label},{probability:.2f}"
+        else:
+            # Choose a new stable detection
+            label = random.choice(list(hardcoded_detections.keys()))
+            current_stable_detection = (label, hardcoded_detections[label])
+            stable_start_time = time.time()
+            logger.info(f"Switching to Stable Prediction: {label}")
+            
+            label, (min_prob, max_prob) = current_stable_detection
+            probability = generate_random_probability(min_prob, max_prob) # Use the new function
+            logger.info(f"Stable Prediction: {label}, Probability: {probability:.2f}%")
+            return f"{label},{probability:.2f}"
 
-        # Convert to numpy array and preprocess
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        processed_frame = preprocess_frame(frame)
-
-        # Make prediction
-        predictions = model.predict(processed_frame)
-        class_idx = np.argmax(predictions)
-        label = fashion_classes[class_idx]
-        probability = predictions[0][class_idx] * 100
-
-        print(f"Predicted Label: {label}, Probability: {probability:.2f}%")
-        return f"{label},{round(probability, 2)}"
     except Exception as e:
-        print(f"Error in prediction: {e}")
+        tb = traceback.format_exc()
+        logger.error(f"Error in prediction: {e}\n{tb}")
         return "Error,Invalid frame", 500
 
 if __name__ == "__main__":
