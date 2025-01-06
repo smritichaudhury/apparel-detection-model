@@ -14,7 +14,7 @@ with open(model_path, "rb") as f:
 
 # Define class labels
 fashion_classes = [
-    "T-shirt/top", "Trouser", "Pullover", "Dress", "Coat", 
+    "T-shirt/top", "Trouser", "Pullover", "Dress", "Coat",
     "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot"
 ]
 
@@ -48,19 +48,21 @@ def preprocess_frame(frame):
     reshaped = np.expand_dims(normalized, axis=(0, -1))
     return reshaped
 
+
 @app.route('/')
 def index():
     """Main page."""
     return render_template('index.html')
 
+
 @app.route('/process_frame', methods=['POST'])
 def process_frame():
-      global current_stable_detection, stable_start_time
+    global current_stable_detection, stable_start_time
 
     try:
         if current_stable_detection and time.time() - stable_start_time < 3:
             label, (min_prob, max_prob) = current_stable_detection
-            probability = generate_random_probability(min_prob, max_prob) # Use the new function
+            probability = generate_random_probability(min_prob, max_prob)  # Use the new function
             logger.info(f"Stable Prediction: {label}, Probability: {probability:.2f}%")
             return f"{label},{probability:.2f}"
         else:
@@ -69,9 +71,9 @@ def process_frame():
             current_stable_detection = (label, hardcoded_detections[label])
             stable_start_time = time.time()
             logger.info(f"Switching to Stable Prediction: {label}")
-            
+
             label, (min_prob, max_prob) = current_stable_detection
-            probability = generate_random_probability(min_prob, max_prob) # Use the new function
+            probability = generate_random_probability(min_prob, max_prob)  # Use the new function
             logger.info(f"Stable Prediction: {label}, Probability: {probability:.2f}%")
             return f"{label},{probability:.2f}"
 
@@ -80,9 +82,11 @@ def process_frame():
         logger.error(f"Error in prediction: {e}\n{tb}")
         return "Error,Invalid frame", 500
 
+
 if __name__ == "__main__":
     app.run(debug=False)
-    
+
+# Code for deploying on Render (optional)
 import os
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
